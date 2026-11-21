@@ -1,0 +1,37 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Environment variables & secrets (CRITICAL: Never commit these!)
+.env
+.env*.local
+.env.development
+.env.production
+.env.test
+*serviceAccount*.json
+*service-account*.json
+*.pem
+*.key
+
+# Firebase logs & runtime files
+firebase-debug.log*
+firestore-debug.log*
+ui-debug.log*
+storage-debug.log*
+.firebase/
+emulator-data/
+
+# Next.js build output
+.next/
+out/
+build/
+dist/
+
+# OS and Editor metadata
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+*.swo

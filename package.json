@@ -1,0 +1,31 @@
+{
+  "name": "fairwork",
+  "version": "1.0.0",
+  "description": "Firebase backend and security infrastructure for FairWork platform",
+  "main": "src/server/index.js",
+  "type": "module",
+  "scripts": {
+    "emulators": "firebase emulators:start",
+    "emulators:export": "firebase emulators:start --export-on-exit=./emulator-data",
+    "test": "firebase emulators:exec --project fairwork-rules-test --only firestore,storage \"node --test test/**/*.test.js\"",
+    "test:local": "node --test test/**/*.test.js",
+    "seed": "node src/scripts/seed.js",
+    "seed:emulator": "firebase emulators:exec --project fairwork-demo --only auth,firestore \"node src/scripts/seed.js\"",
+    "start": "node src/server/index.js"
+  },
+  "keywords": [
+    "firebase",
+    "nextjs",
+    "security-rules",
+    "fairwork"
+  ],
+  "dependencies": {
+    "dotenv": "^18.0.10",
+    "express": "^5.3.0",
+    "firebase": "^13.4.0",
+    "firebase-admin": "^14.5.1"
+  },
+  "devDependencies": {
+    "@firebase/rules-unit-testing": "^6.0.0"
+  }
+}

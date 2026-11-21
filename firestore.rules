@@ -1,0 +1,69 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isUser(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isProjectMember(projectId) {
+      return isAuthenticated() &&
+        exists(/databases/$(database)/documents/projects/$(projectId)) &&
+        request.auth.uid in get(/databases/$(database)/documents/projects/$(projectId)).data.memberIds;
+    }
+
+    // 1. Koleksi Users:
+    // Pengguna login dapat membaca profil dasar, tetapi hanya boleh membuat/mengubah dokumen profil miliknya sendiri.
+    match /users/{userId} {
+      allow read: if isAuthenticated();
+      allow create, update: if isUser(userId);
+      allow delete: if false;
+    }
+
+    // 2. Koleksi Projects:
+    // Hanya anggota proyek (uid ada di memberIds) yang bisa membaca proyek.
+    // Seluruh mutasi data/write hanya boleh melalui Backend Admin SDK.
+    match /projects/{projectId} {
+      allow read: if isAuthenticated() && (request.auth.uid in resource.data.memberIds);
+      allow write: if false;
+    }
+
+    // 3. Koleksi Milestones:
+    // Hanya anggota proyek terkait yang boleh membaca milestone. Write via Admin SDK.
+    match /milestones/{milestoneId} {
+      allow read: if isProjectMember(resource.data.projectId);
+      allow write: if false;
+    }
+
+    // 4. Koleksi Submissions:
+    // Hanya anggota proyek terkait yang boleh membaca submission. Write via Admin SDK (versi lama immutable).
+    match /submissions/{submissionId} {
+      allow read: if isProjectMember(resource.data.projectId);
+      allow write: if false;
+    }
+
+    // 5. Koleksi Reviews:
+    // Hanya anggota proyek terkait yang boleh membaca review. Write via Admin SDK (ditegakkan aturan review di backend).
+    match /reviews/{reviewId} {
+      allow read: if isProjectMember(resource.data.projectId);
+      allow write: if false;
+    }
+
+    // 6. Koleksi Activity:
+    // Hanya anggota proyek terkait yang boleh membaca feed audit/activity log. Write via Admin SDK.
+    match /activity/{activityId} {
+      allow read: if isProjectMember(resource.data.projectId);
+      allow write: if false;
+    }
+
+    // Default deny untuk path lainnya
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
