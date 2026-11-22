@@ -27,6 +27,7 @@ emulator-data/
 out/
 build/
 dist/
+*.tsbuildinfo
 
 # OS and Editor metadata
 .DS_Store
