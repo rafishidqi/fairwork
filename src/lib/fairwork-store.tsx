@@ -291,6 +291,13 @@ interface FairWorkContextType {
   getContributionSummary: () => ContributionSummary[];
   resetToDemo: () => void;
   isLiveSupabase: boolean;
+  mode: 'demo' | 'live';
+  authLoading: boolean;
+  isAuthenticated: boolean;
+  selectMode: (mode: 'demo' | 'live') => void;
+  signIn: (email: string, password: string) => Promise<void>;
+  signUp: (nama: string, email: string, password: string) => Promise<string | null>;
+  signOut: () => Promise<void>;
 }
 
 const FairWorkContext = createContext<FairWorkContextType | undefined>(undefined);
@@ -305,14 +312,31 @@ export function FairWorkProvider({ children }: { children: ReactNode }) {
   const [reviews, setReviews] = useState<Review[]>(INITIAL_REVIEWS);
   const [activities, setActivities] = useState<Activity[]>(INITIAL_ACTIVITIES);
   const [isLiveSupabase, setIsLiveSupabase] = useState(false);
+  const [mode, setMode] = useState<'demo' | 'live'>('demo');
+  const [authLoading, setAuthLoading] = useState(true);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
 
   // Initialize from LocalStorage or Supabase
   useEffect(() => {
     const supabase = getSupabaseClient();
-    if (supabase && isSupabaseConfigured) {
-      setIsLiveSupabase(true);
-      // Supabase is configured; sync data from DB
-      syncFromSupabase(supabase);
+    const savedMode = localStorage.getItem('fw_mode') as 'demo' | 'live' | null;
+    const initialMode = savedMode === 'live' && isSupabaseConfigured ? 'live' : 'demo';
+    setMode(initialMode);
+
+    if (initialMode === 'live' && supabase) {
+      supabase.auth.getSession().then(({ data: { session } }) => {
+        if (session?.user) initializeLiveUser(supabase, session.user);
+        else setAuthLoading(false);
+      });
+      const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+        if (session?.user) initializeLiveUser(supabase, session.user);
+        else {
+          setIsAuthenticated(false);
+          setIsLiveSupabase(false);
+          setAuthLoading(false);
+        }
+      });
+      return () => subscription.unsubscribe();
     } else {
       // Fallback to local storage persistence for smooth demo
       const savedProjects = localStorage.getItem('fw_projects');
@@ -328,6 +352,7 @@ export function FairWorkProvider({ children }: { children: ReactNode }) {
       if (savedReviews) setReviews(JSON.parse(savedReviews));
       if (savedActivities) setActivities(JSON.parse(savedActivities));
       if (savedUser) setCurrentUser(JSON.parse(savedUser));
+      setAuthLoading(false);
     }
   }, []);
 
@@ -346,25 +371,95 @@ export function FairWorkProvider({ children }: { children: ReactNode }) {
   async function syncFromSupabase(supabase: any) {
     try {
       const { data: projs } = await supabase.from('projects').select('*');
-      if (projs && projs.length > 0) {
-        setProjects(projs);
-        setCurrentProject(projs[0]);
-      }
+      setProjects(projs || []);
+      if (projs && projs.length > 0) setCurrentProject(projs[0]);
       const { data: mls } = await supabase.from('milestones').select('*, assignee:profiles(*)');
-      if (mls && mls.length > 0) setMilestones(mls);
+      setMilestones(mls || []);
 
       const { data: subs } = await supabase.from('submissions').select('*, member:profiles(*)');
-      if (subs && subs.length > 0) setSubmissions(subs);
+      setSubmissions(subs || []);
 
       const { data: revs } = await supabase.from('reviews').select('*, reviewer:profiles(*)');
-      if (revs && revs.length > 0) setReviews(revs);
+      setReviews(revs || []);
 
       const { data: acts } = await supabase.from('activity').select('*, aktor:profiles(*)').order('created_at', { ascending: false });
-      if (acts && acts.length > 0) setActivities(acts);
+      setActivities(acts || []);
+      if (projs && projs.length > 0) {
+        const { data: projectMembers } = await supabase
+          .from('project_members')
+          .select('*, profile:profiles(*)')
+          .eq('project_id', projs[0].id);
+        setMembers(projectMembers || []);
+      } else setMembers([]);
     } catch (err) {
       console.warn('Supabase sync warning, falling back to local store:', err);
     }
   }
+
+  async function initializeLiveUser(supabase: any, authUser: any) {
+    setAuthLoading(true);
+    const { data: profile, error } = await supabase.from('profiles').select('*').eq('id', authUser.id).single();
+    if (error || !profile) {
+      console.warn('Unable to load FairWork profile:', error?.message);
+      setIsAuthenticated(false);
+      setIsLiveSupabase(false);
+    } else {
+      setCurrentUser(profile);
+      setIsAuthenticated(true);
+      setIsLiveSupabase(true);
+      await syncFromSupabase(supabase);
+    }
+    setAuthLoading(false);
+  }
+
+  const selectMode = (nextMode: 'demo' | 'live') => {
+    if (nextMode === 'live' && !isSupabaseConfigured) {
+      throw new Error('Supabase belum dikonfigurasi. Isi NEXT_PUBLIC_SUPABASE_URL dan NEXT_PUBLIC_SUPABASE_ANON_KEY.');
+    }
+    localStorage.setItem('fw_mode', nextMode);
+    setMode(nextMode);
+    if (nextMode === 'demo') {
+      setIsLiveSupabase(false);
+      setIsAuthenticated(false);
+      resetToDemo();
+    } else {
+      const supabase = getSupabaseClient();
+      setAuthLoading(true);
+      supabase?.auth.getSession().then(({ data: { session } }) => {
+        if (session?.user) initializeLiveUser(supabase, session.user);
+        else setAuthLoading(false);
+      });
+    }
+  };
+
+  const signIn = async (email: string, password: string) => {
+    const supabase = getSupabaseClient();
+    if (!supabase) throw new Error('Supabase belum dikonfigurasi.');
+    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error) throw error;
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user) await initializeLiveUser(supabase, user);
+  };
+
+  const signUp = async (nama: string, email: string, password: string) => {
+    const supabase = getSupabaseClient();
+    if (!supabase) throw new Error('Supabase belum dikonfigurasi.');
+    const { data, error } = await supabase.auth.signUp({ email, password, options: { data: { nama } } });
+    if (error) throw error;
+    if (data.session?.user) await initializeLiveUser(supabase, data.session.user);
+    return data.session ? null : 'Akun dibuat. Periksa email untuk mengonfirmasi akun, lalu masuk.';
+  };
+
+  const signOut = async () => {
+    const supabase = getSupabaseClient();
+    if (supabase) {
+      const { error } = await supabase.auth.signOut();
+      if (error) throw error;
+    }
+    setIsAuthenticated(false);
+    setIsLiveSupabase(false);
+    setAuthLoading(false);
+  };
 
   const resetToDemo = () => {
     localStorage.clear();
@@ -380,6 +475,27 @@ export function FairWorkProvider({ children }: { children: ReactNode }) {
 
   // FR-2: Create Project
   const createProject = async (data: { judul: string; mata_kuliah: string; tenggat: string; deskripsi?: string; member_emails?: string[] }): Promise<Project> => {
+    if (isLiveSupabase) {
+      const supabase = getSupabaseClient();
+      const { data: project, error } = await supabase!.from('projects').insert({
+        judul: data.judul,
+        mata_kuliah: data.mata_kuliah,
+        tenggat: data.tenggat,
+        deskripsi: data.deskripsi || '',
+        leader_id: currentUser.id,
+      }).select().single();
+      if (error) throw error;
+      const emails = Array.from(new Set([currentUser.email, ...(data.member_emails || [])]));
+      const { data: profiles, error: profilesError } = await supabase!.from('profiles').select('id, email').in('email', emails);
+      if (profilesError) throw profilesError;
+      const rows = (profiles || []).map((profile: any) => ({ project_id: project.id, user_id: profile.id, role: profile.id === currentUser.id ? 'leader' : 'member' }));
+      if (rows.length) {
+        const { error: membersError } = await supabase!.from('project_members').insert(rows);
+        if (membersError) throw membersError;
+      }
+      await syncFromSupabase(supabase);
+      return project;
+    }
     const newProject: Project = {
       id: crypto.randomUUID ? crypto.randomUUID() : 'p-' + Date.now(),
       judul: data.judul,
@@ -421,6 +537,13 @@ export function FairWorkProvider({ children }: { children: ReactNode }) {
 
   // FR-3: Create Milestone
   const createMilestone = async (data: { judul: string; deskripsi?: string; tenggat: string; assignee_id: string; bobot: number }) => {
+    if (isLiveSupabase) {
+      const supabase = getSupabaseClient();
+      const { error } = await supabase!.from('milestones').insert({ ...data, project_id: currentProject.id, status: 'todo' });
+      if (error) throw error;
+      await syncFromSupabase(supabase);
+      return;
+    }
     const assigneeProfile = DEMO_USERS.find((u) => u.id === data.assignee_id) || currentUser;
     const newMilestone: Milestone = {
       id: crypto.randomUUID ? crypto.randomUUID() : 'm-' + Date.now(),
@@ -450,12 +573,24 @@ export function FairWorkProvider({ children }: { children: ReactNode }) {
   };
 
   const updateMilestone = async (id: string, data: Partial<Milestone>) => {
+    if (isLiveSupabase) {
+      const { error } = await getSupabaseClient()!.from('milestones').update(data).eq('id', id);
+      if (error) throw error;
+      await syncFromSupabase(getSupabaseClient());
+      return;
+    }
     setMilestones((prev) =>
       prev.map((m) => (m.id === id ? { ...m, ...data, updated_at: new Date().toISOString() } : m))
     );
   };
 
   const deleteMilestone = async (id: string) => {
+    if (isLiveSupabase) {
+      const { error } = await getSupabaseClient()!.from('milestones').delete().eq('id', id);
+      if (error) throw error;
+      await syncFromSupabase(getSupabaseClient());
+      return;
+    }
     setMilestones((prev) => prev.filter((m) => m.id !== id));
   };
 
@@ -470,6 +605,14 @@ export function FairWorkProvider({ children }: { children: ReactNode }) {
 
     // FR-8: Check copy-paste / unedited text heuristic
     const { flag, reason } = evaluateTextFlag(deskripsi, existing);
+
+    if (isLiveSupabase) {
+      const supabase = getSupabaseClient();
+      const { error } = await supabase!.from('submissions').insert({ milestone_id: milestoneId, member_id: currentUser.id, versi: newVersion, deskripsi, file_paths: files, flag_unreviewed_text: flag, flag_reason: reason });
+      if (error) throw error;
+      await syncFromSupabase(supabase);
+      return;
+    }
 
     const newSub: Submission = {
       id: crypto.randomUUID ? crypto.randomUUID() : 'sub-' + Date.now(),
@@ -547,6 +690,14 @@ export function FairWorkProvider({ children }: { children: ReactNode }) {
     };
 
     const newStatus: MilestoneStatus = keputusan === 'verify' ? 'verified' : 'revision_requested';
+
+    if (isLiveSupabase) {
+      const supabase = getSupabaseClient();
+      const { error } = await supabase!.from('reviews').insert({ submission_id: submissionId, reviewer_id: currentUser.id, keputusan, komentar: komentar.trim() });
+      if (error) return { success: false, error: error.message };
+      await syncFromSupabase(supabase);
+      return { success: true };
+    }
 
     setMilestones((prev) =>
       prev.map((m) =>
@@ -646,6 +797,13 @@ export function FairWorkProvider({ children }: { children: ReactNode }) {
         getContributionSummary,
         resetToDemo,
         isLiveSupabase,
+        mode,
+        authLoading,
+        isAuthenticated,
+        selectMode,
+        signIn,
+        signUp,
+        signOut,
       }}
     >
       {children}

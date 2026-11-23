@@ -145,6 +145,15 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=your-supabase-anon-key
 > **Instant Evaluator Demo Mode:**  
 > If no Supabase credentials are provided, FairWork automatically runs in **Interactive Demo Mode** with pre-seeded data for the Final Day scenario and full client-side persistence! Evaluators can test all features immediately.
 
+### Application Modes
+
+FairWork provides two intentionally separate modes:
+
+* **Demo Mode** uses the bundled scenario, local browser storage, and the persona switcher. It does not create a Supabase session or change cloud data.
+* **Live Mode** uses Supabase Auth (email/password), the `profiles` trigger, and the database RLS policies. Select **Live Mode** in the top bar, then register or sign in. New accounts may need email confirmation if that is enabled in Supabase Authentication settings.
+
+Before using Live Mode, run the migration below. Invitee email addresses must already belong to registered FairWork accounts; otherwise they are not added to the new project.
+
 ### 3. Run Database Migrations (Supabase Dashboard)
 1. Open your Supabase project dashboard > **SQL Editor**.
 2. Run `supabase/migrations/20261122000000_fairwork_initial_schema.sql`.

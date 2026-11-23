@@ -11,6 +11,7 @@ import {
   PlusCircle,
   FolderPlus,
   RotateCcw,
+  LogOut,
   ShieldCheck,
   ChevronDown,
 } from 'lucide-react';
@@ -36,6 +37,9 @@ export default function Navbar({
     setCurrentProject,
     resetToDemo,
     isLiveSupabase,
+    mode,
+    selectMode,
+    signOut,
   } = useFairWork();
 
   const [userDropdownOpen, setUserDropdownOpen] = useState(false);
@@ -48,7 +52,7 @@ export default function Navbar({
         <div className="flex items-center gap-2">
           <span className="flex h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
           <span className="font-semibold text-emerald-300">
-            {isLiveSupabase ? 'Supabase Live Connected' : 'STACK 2026 Interactive Demo Mode'}
+            {isLiveSupabase ? 'Live Mode — Supabase Auth + RLS' : 'Demo Mode — data lokal'}
           </span>
           <span className="hidden sm:inline text-slate-400">|</span>
           <span className="hidden sm:inline text-slate-300">
@@ -56,8 +60,7 @@ export default function Navbar({
           </span>
         </div>
 
-        {/* Quick Demo Persona Switcher */}
-        <div className="flex items-center gap-1.5 overflow-x-auto py-0.5">
+        {mode === 'demo' ? <div className="flex items-center gap-1.5 overflow-x-auto py-0.5">
           <span className="text-slate-400 text-[11px] whitespace-nowrap">Switch Persona:</span>
           {DEMO_USERS.map((u) => {
             const isActive = u.id === currentUser.id;
@@ -87,7 +90,17 @@ export default function Navbar({
             <RotateCcw className="w-3 h-3" />
             <span className="hidden md:inline">Reset</span>
           </button>
-        </div>
+          <button
+            onClick={() => selectMode('live')}
+            className="ml-1 px-2 py-0.5 rounded text-[11px] font-medium bg-emerald-700 text-white hover:bg-emerald-600"
+            title="Masuk ke workspace Supabase"
+          >
+            Live Mode
+          </button>
+        </div> : <div className="flex items-center gap-2">
+          <button onClick={() => selectMode('demo')} className="px-2 py-0.5 rounded text-[11px] bg-slate-800 text-slate-200 hover:bg-slate-700">Demo Mode</button>
+          <button onClick={() => signOut()} className="px-2 py-0.5 rounded text-[11px] bg-rose-900/60 text-rose-100 hover:bg-rose-900 flex items-center gap-1"><LogOut className="w-3 h-3" /> Keluar</button>
+        </div>}
       </div>
 
       {/* Main Navigation */}
@@ -144,7 +157,7 @@ export default function Navbar({
                       <span className="text-[10px] text-slate-400">{p.mata_kuliah}</span>
                     </button>
                   ))}
-                  <div className="border-t border-slate-100 mt-1 pt-1 px-2">
+                  {mode === 'demo' && <div className="border-t border-slate-100 mt-1 pt-1 px-2">
                     <button
                       onClick={() => {
                         setProjectDropdownOpen(false);
@@ -155,7 +168,7 @@ export default function Navbar({
                       <FolderPlus className="w-3.5 h-3.5" />
                       Create New Project
                     </button>
-                  </div>
+                  </div>}
                 </div>
               )}
             </div>

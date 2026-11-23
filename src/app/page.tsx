@@ -11,8 +11,11 @@ import CreateProjectModal from '@/components/CreateProjectModal';
 import CreateMilestoneModal from '@/components/CreateMilestoneModal';
 import { Milestone, Submission } from '@/types/database';
 import { ShieldCheck } from 'lucide-react';
+import AuthScreen from '@/components/AuthScreen';
+import { useFairWork } from '@/lib/fairwork-store';
 
 export default function HomePage() {
+  const { mode, authLoading, isAuthenticated, isLiveSupabase, projects } = useFairWork();
   const [activeTab, setActiveTab] = useState<'board' | 'summary'>('board');
   const [isCreateMilestoneOpen, setIsCreateMilestoneOpen] = useState(false);
   const [isCreateProjectOpen, setIsCreateProjectOpen] = useState(false);
@@ -24,6 +27,9 @@ export default function HomePage() {
   } | null>(null);
   const [auditMilestone, setAuditMilestone] = useState<Milestone | null>(null);
 
+  if (authLoading) return <div className="min-h-screen grid place-items-center text-sm text-slate-500">Memuat sesi FairWork...</div>;
+  if (mode === 'live' && !isAuthenticated) return <AuthScreen />;
+
   return (
     <div className="min-h-screen flex flex-col bg-slate-50">
       <Navbar
@@ -34,7 +40,13 @@ export default function HomePage() {
       />
 
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
-        {activeTab === 'board' ? (
+        {isLiveSupabase && projects.length === 0 ? (
+          <div className="max-w-xl mx-auto mt-16 bg-white border border-slate-200 rounded-2xl p-8 text-center shadow-sm">
+            <h1 className="text-xl font-bold text-slate-900">Belum ada proyek</h1>
+            <p className="mt-2 text-sm text-slate-500">Buat proyek pertama untuk memulai workspace live Anda.</p>
+            <button onClick={() => setIsCreateProjectOpen(true)} className="mt-5 px-4 py-2 rounded-lg bg-indigo-600 text-white text-sm font-semibold">Buat proyek</button>
+          </div>
+        ) : activeTab === 'board' ? (
           <MilestoneBoard
             onOpenUpload={(m) => setUploadMilestone(m)}
             onOpenReview={(m, sub) => setReviewState({ milestone: m, submission: sub })}
