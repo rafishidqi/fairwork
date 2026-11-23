@@ -103,7 +103,13 @@ export default function MilestoneCard({
           <div className="mb-3 p-2.5 rounded-lg bg-slate-50 border border-slate-100 text-xs">
             <div className="flex items-center justify-between text-[11px] text-slate-500 mb-1">
               <span className="font-semibold text-slate-700">Proof of Work (v{latestSubmission.versi})</span>
-              <span>{new Date(latestSubmission.created_at).toLocaleDateString()}</span>
+              <span>
+                {new Date(latestSubmission.created_at).toLocaleDateString('en-US', {
+                  month: 'short',
+                  day: 'numeric',
+                  year: 'numeric',
+                })}
+              </span>
             </div>
             <p className="text-slate-600 line-clamp-2 italic text-[11px] mb-1.5">
               &quot;{latestSubmission.deskripsi}&quot;
